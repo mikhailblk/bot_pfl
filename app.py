@@ -1,50 +1,50 @@
-import sys
-import os
 import asyncio
 import logging
-from aiogram.client.session.aiohttp import AiohttpSession
-
-# Настройка логов для отладки
-logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-
+import sys
+import os
 from flask import Flask, request
 from aiogram import Bot, Dispatcher, types
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.types import Update
 
-# --- Конфигурация ---
+# Настройка логов
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+
+# --- КОНФИГУРАЦИЯ ---
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 if not BOT_TOKEN:
-    logging.error("❌ BOT_TOKEN не найден в переменных окружения!")
-    # Создаем заглушку приложения, чтобы сайт просто показывал ошибку
-    app = Flask(__name__)
-    @app.route('/')
-    def index(): return "Ошибка: BOT_TOKEN не настроен", 500
-    application = app
+    logging.error("❌ BOT_TOKEN не найден!")
     sys.exit(1)
 
-# --- Инициализация бота ---
-bot = Bot(token=BOT_TOKEN)
+MANAGER_USERNAME = os.environ.get('MANAGER_USERNAME', '@Lobin24')
+DEFAULT_LANGUAGE = os.environ.get('DEFAULT_LANGUAGE', 'RU')
+
+# --- ИНИЦИАЛИЗАЦИЯ БОТА ---
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dp = Dispatcher()
 
-# --- Обработчики ---
-@dp.message()
-async def echo_all(message: types.Message):
-    """Тестовый обработчик на все сообщения"""
-    await message.answer("✅ Бот работает! Ваше сообщение получено.")
+# --- ИМПОРТЫ ВАШИХ МОДУЛЕЙ ---
+# (Скопируйте сюда импорты и обработчики из вашего старого bot.py)
+# from language import Language, get_text
+# from plants_data import get_all_plants, get_plants_by_genetics_type
+# from keyboards import ...
 
-# --- Flask приложение ---
+# ========== ВАШИ ОБРАБОТЧИКИ (ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ) ==========
+# ... (весь ваш код с @dp.message, который мы написали ранее) ...
+# =================================================================
+
+# --- FLASK ПРИЛОЖЕНИЕ ДЛЯ ВЕБХУКА ---
 app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return "🌿 Бот для продажи Cannabis работает! 🚀"
+    return "🌿 Бот работает!"
 
 @app.route('/webhook', methods=['POST'])
 async def webhook():
-    """Принимаем обновления от Telegram"""
     try:
         update_data = await request.get_json()
-        logging.info(f"Получен вебхук: {update_data.get('message', {}).get('text')}")
         update = Update.model_validate(update_data, context={"bot": bot})
         await dp.feed_update(bot, update)
         return "OK", 200
@@ -52,25 +52,7 @@ async def webhook():
         logging.error(f"Ошибка в вебхуке: {e}")
         return "ERROR", 500
 
-# --- Настройка вебхука при старте (для PythonAnywhere) ---
-async def setup_webhook():
-    """Устанавливает вебхук один раз при запуске"""
-    webhook_url = 'https://blkmkl.pythonanywhere.com/webhook'
-    result = await bot.set_webhook(url=webhook_url)
-    if result:
-        logging.info(f"✅ Вебхук успешно установлен на {webhook_url}")
-    else:
-        logging.error(f"❌ Ошибка установки вебхука на {webhook_url}")
-
-# Запускаем настройку вебхука в фоновом потоке
-def start_background_loop():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(setup_webhook())
-    loop.close()
-
-import threading
-threading.Thread(target=start_background_loop).start()
-
-# Это для совместимости с ожиданиями PythonAnywhere
-application = app
+# --- ЗАПУСК ---
+if __name__ == "__main__":
+    # Этот блок не используется на Render
+    app.run()
