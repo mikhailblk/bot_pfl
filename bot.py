@@ -127,6 +127,25 @@ async def show_plant_by_index(message_or_callback, user_id: int, lang: Language,
                 reply_markup=keyboard
             )
 
+@dp.callback_query(lambda c: c.data == "contact_manager")
+async def contact_manager_callback(callback: types.CallbackQuery):
+    """Обработчик кнопки связи с менеджером в карточке товара"""
+    user_id = callback.from_user.id
+    lang = get_user_language(user_id)
+
+    manager = MANAGER_USERNAME
+    manager_clean = manager.replace("@", "")
+    manager_link = f"https://t.me/{manager_clean}"
+
+    if lang == Language.RU:
+        text = f"📦 Нажмите на ссылку, чтобы связаться с менеджером:\n👉 {manager_link}\n\nИли напишите напрямую: {manager}"
+    elif lang == Language.EN:
+        text = f"📦 Click the link to contact the manager:\n👉 {manager_link}\n\nOr write directly: {manager}"
+    else:
+        text = f"📦 Klicken Sie auf den Link, um den Manager zu kontaktieren:\n👉 {manager_link}\n\nOder schreiben Sie direkt: {manager}"
+
+    await callback.message.answer(text, reply_markup=get_back_to_menu_keyboard(lang))
+    await callback.answer()  # Закрывает "бесконечную загрузку"
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
