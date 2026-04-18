@@ -127,8 +127,9 @@ async def show_plant_by_index(message_or_callback, user_id: int, lang: Language,
                 reply_markup=keyboard
             )
 
+
 @dp.callback_query(lambda c: c.data == "contact_manager")
-async def contact_manager_callback(callback: types.CallbackQuery):
+async def contact_manager_callback(callback: CallbackQuery):
     """Обработчик кнопки связи с менеджером в карточке товара"""
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
@@ -145,7 +146,8 @@ async def contact_manager_callback(callback: types.CallbackQuery):
         text = f"📦 Klicken Sie auf den Link, um den Manager zu kontaktieren:\n👉 {manager_link}\n\nOder schreiben Sie direkt: {manager}"
 
     await callback.message.answer(text, reply_markup=get_back_to_menu_keyboard(lang))
-    await callback.answer()  # Закрывает "бесконечную загрузку"
+    await callback.answer()
+
 
 @dp.message(Command("start"))
 async def start_command(message: Message):
@@ -171,7 +173,6 @@ async def show_categories(message: Message):
     )
 
 
-# Обработчики для категорий
 @dp.message(lambda message: message.text in ["🌿 SATIVA", "🌿 САТИВА"])
 async def show_sativa(message: Message):
     """Показать все сорта Сатива"""
@@ -263,7 +264,6 @@ async def order(message: Message):
     await message.answer(text, reply_markup=get_back_to_menu_keyboard(lang))
 
 
-# ВАЖНО: Обработчик выбора сорта - ДОЛЖЕН БЫТЬ ПОСЛЕ ОСТАЛЬНЫХ ОБРАБОТЧИКОВ
 # Создаём список всех названий растений
 ALL_PLANT_NAMES = [plant.display_name for plant in get_all_plants()]
 
@@ -277,20 +277,16 @@ async def show_plant_details(message: Message):
     plant_name = message.text
     print(f"DEBUG: Выбран сорт: {plant_name}, язык: {lang}")
 
-    # Ищем в какой категории находится это растение
     categories = ["all", "sativa", "indica", "hybrid"]
     found_category = None
     found_index = None
 
     for category in categories:
         plants = get_plants_for_category(user_id, category, lang)
-        print(f"DEBUG: Категория {category}, найдено растений: {len(plants)}")
         for idx, p in enumerate(plants):
-            print(f"DEBUG: Сравниваем {p.display_name} с {plant_name}")
             if p.display_name == plant_name:
                 found_category = category
                 found_index = idx
-                print(f"DEBUG: Найдено! Категория: {category}, индекс: {idx}")
                 break
         if found_category:
             break
@@ -298,11 +294,9 @@ async def show_plant_details(message: Message):
     if found_category and found_index is not None:
         await show_plant_by_index(message, user_id, lang, found_category, found_index, is_callback=False)
     else:
-        print(f"DEBUG: НЕ НАЙДЕНО! Сорт {plant_name} не найден в категориях")
         await message.answer(get_text(lang, "select_plant"), reply_markup=get_category_keyboard(lang))
 
 
-# Обработчики навигации
 @dp.callback_query(lambda c: c.data.startswith("nav_prev_"))
 async def nav_prev(callback: CallbackQuery):
     """Навигация - предыдущее растение"""
@@ -351,7 +345,6 @@ async def back_to_main_menu_callback(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
 
-    # Очищаем кэш для пользователя
     if user_id in category_cache:
         del category_cache[user_id]
 
@@ -363,24 +356,12 @@ async def back_to_main_menu_callback(callback: CallbackQuery):
     await callback.answer()
 
 
-@dp.callback_query(lambda c: c.data == "make_order")
-async def make_order_callback(callback: CallbackQuery):
-    """Оформление заказа"""
-    user_id = callback.from_user.id
-    lang = get_user_language(user_id)
-
-    order_text = get_text(lang, "order_info")
-    await callback.message.answer(order_text, reply_markup=get_back_to_menu_keyboard(lang))
-    await callback.answer()
-
-
 @dp.callback_query(lambda c: c.data == "empty")
 async def empty_callback(callback: CallbackQuery):
     """Пустая кнопка - ничего не делает"""
     await callback.answer()
 
 
-# Возврат к категориям из обычной клавиатуры
 @dp.message(lambda message: message.text in ["↩️ Назад к категориям", "↩️ Back to categories", "↩️ Zurück zu Kategorien"])
 async def back_to_categories_reply(message: Message):
     """Вернуться к выбору категорий"""
@@ -399,7 +380,6 @@ async def back_to_main_menu_reply(message: Message):
     user_id = message.from_user.id
     lang = get_user_language(user_id)
 
-    # Очищаем кэш для пользователя
     if user_id in category_cache:
         del category_cache[user_id]
 
@@ -407,7 +387,6 @@ async def back_to_main_menu_reply(message: Message):
     await message.answer(welcome_text, reply_markup=get_main_menu_keyboard(lang))
 
 
-# Смена языка
 @dp.message(lambda message: message.text in ["🌐 ENGLISH / РУССКИЙ", "🌐 DEUTSCH / РУССКИЙ", "🌐 DEUTSCH / ENGLISH"])
 async def change_language_menu(message: Message):
     """Показать меню смены языка"""
@@ -458,7 +437,6 @@ async def set_language(message: Message):
         user_languages[user_id] = Language.RU
         lang = Language.RU
 
-    # Очищаем кэш при смене языка
     if user_id in category_cache:
         del category_cache[user_id]
 
