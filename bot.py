@@ -456,8 +456,10 @@ def webhook():
             return jsonify({"error": "No data"}), 400
 
         update = Update.model_validate(update_data)
-        # asyncio.run() сам создаст и закроет loop
-        asyncio.run(dp.feed_update(bot, update))
+
+        # Используем глобальный event loop
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(dp.feed_update(bot, update))
 
         return jsonify({"status": "ok"}), 200
     except Exception as e:
@@ -468,4 +470,19 @@ def webhook():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     logger.info(f"Starting Flask server on port {port}")
-    flask_app.run(host='0.0.0.0', port=port, debug=False)
+
+    # Создаём глобальный event loop (ДО того, как он понадобится)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Запускаем Flask в отдельном потоке
+    import threading
+    flask_thread = threading.Thread(target=lambda: flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False))
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Держим event loop живым
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
