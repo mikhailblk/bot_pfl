@@ -448,53 +448,30 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 @flask_app.route(WEBHOOK_PATH, methods=['POST'])
-async def webhook():
+def webhook():
+    """Обработчик вебхука (синхронная версия для совместимости)"""
     try:
         update_data = request.get_json()
         if not update_data:
             return jsonify({"error": "No data"}), 400
 
-        update = Update.model_validate(update_data)
-        await dp.feed_update(bot, update)
+        # Создаем новый event loop для обработки асинхронного update
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            update = Update.model_validate(update_data)
+            loop.run_until_complete(dp.feed_update(bot, update))
+        finally:
+            loop.close()
+
         return jsonify({"status": "ok"}), 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # ========== ЗАПУСК ==========
-async def setup_webhook():
-    webhook_full_url = f"{WEBHOOK_URL}{WEBHOOK_PATH}"
-    logger.info(f"Setting webhook to: {webhook_full_url}")
-
-    result = await bot.set_webhook(
-        url=webhook_full_url,
-        allowed_updates=["message", "callback_query"]
-    )
-
-    if result:
-        logger.info("Webhook set successfully!")
-    else:
-        logger.error("Failed to set webhook")
-    return result
-
-async def on_startup():
-    logger.info("Starting bot...")
-    await setup_webhook()
-    logger.info("Bot started!")
-
-async def on_shutdown():
-    logger.info("Shutting down...")
-    await bot.delete_webhook()
-    await bot.session.close()
-
-def run():
-    port = int(os.environ.get('PORT', 10000))
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(on_startup())
-
-    flask_app.run(host='0.0.0.0', port=port, debug=False)
-
 if __name__ == '__main__':
-    run()
+    port = int(os.environ.get('PORT', 10000))
+    logger.info(f"Starting Flask server on port {port}")
+    flask_app.run(host='0.0.0.0', port=port, debug=False)
