@@ -7,9 +7,13 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import Update, CallbackQuery, Message, FSInputFile
-from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from enum import Enum
 from typing import Dict, List, Optional
+
+# ========== ГЛОБАЛЬНЫЙ EVENT LOOP (СОЗДАЁМ В САМОМ НАЧАЛЕ) ==========
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 # ========== КОНФИГУРАЦИЯ ==========
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -321,7 +325,6 @@ async def show_plant_details(message: Message):
 
     for plant in PLANTS:
         if plant.display_name == plant_name:
-            # Определяем категорию
             if "sativa" in plant.genetics.lower():
                 category = "sativa"
             elif "indica" in plant.genetics.lower():
@@ -333,21 +336,12 @@ async def show_plant_details(message: Message):
             index = next((i for i, p in enumerate(plants) if p.id == plant.id), 0)
 
             text = plant.get_full_info_text(lang)
-            photo_path = plant.get_photo_path()
             keyboard = get_plant_navigation_keyboard(lang, index, len(plants), category, plant.id)
 
-            if photo_path:
-                try:
-                    photo = FSInputFile(photo_path)
-                    await message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-                except Exception as e:
-                    logger.error(f"Photo error: {e}")
-                    await message.answer(text, reply_markup=keyboard)
-            else:
-                await message.answer(text, reply_markup=keyboard)
+            # Отправляем только текст (без фото для стабильности)
+            await message.answer(text, reply_markup=keyboard)
             return
 
-    # Если не нашли растение
     await message.answer(get_text(lang, "select_category"), reply_markup=get_category_keyboard(lang))
 
 @dp.callback_query(lambda c: c.data.startswith("prev_"))
@@ -363,18 +357,8 @@ async def nav_prev(callback: CallbackQuery):
         new_index = current_index - 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
-        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-
-        if photo_path:
-            try:
-                photo = FSInputFile(photo_path)
-                await callback.message.delete()
-                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-            except:
-                await callback.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("next_"))
@@ -390,18 +374,8 @@ async def nav_next(callback: CallbackQuery):
         new_index = current_index + 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
-        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-
-        if photo_path:
-            try:
-                photo = FSInputFile(photo_path)
-                await callback.message.delete()
-                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-            except:
-                await callback.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("back_cat_"))
@@ -450,14 +424,13 @@ def health():
 @flask_app.route(WEBHOOK_PATH, methods=['POST'])
 def webhook():
     """Обработчик вебхука"""
+    global loop
     try:
         update_data = request.get_json()
         if not update_data:
             return jsonify({"error": "No data"}), 400
 
         update = Update.model_validate(update_data)
-
-        # Используем глобальный event loop
         asyncio.set_event_loop(loop)
         loop.run_until_complete(dp.feed_update(bot, update))
 
@@ -471,17 +444,9 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     logger.info(f"Starting Flask server on port {port}")
 
-    # Создаём глобальный event loop (ДО того, как он понадобится)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    # Запускаем Flask в отдельном потоке
     import threading
-    flask_thread = threading.Thread(target=lambda: flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False))
-    flask_thread.daemon = True
-    flask_thread.start()
+    threading.Thread(target=lambda: flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
 
-    # Держим event loop живым
     try:
         loop.run_forever()
     except KeyboardInterrupt:
