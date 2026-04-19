@@ -455,16 +455,9 @@ def webhook():
         if not update_data:
             return jsonify({"error": "No data"}), 400
 
-        # Получаем текущий или создаём новый event loop
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
         update = Update.model_validate(update_data)
-        # Запускаем обработку и ждём результат
-        loop.run_until_complete(dp.feed_update(bot, update))
+        # asyncio.run() сам создаст и закроет loop
+        asyncio.run(dp.feed_update(bot, update))
 
         return jsonify({"status": "ok"}), 200
     except Exception as e:
