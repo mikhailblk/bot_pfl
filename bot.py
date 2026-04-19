@@ -37,7 +37,6 @@ class Language(Enum):
     EN = "english"
     RU = "russian"
 
-# Тексты на всех языках
 TEXTS = {
     Language.DE: {
         "welcome": "🌿 Willkommen in unserem Cannabis-Shop! 🌿\n\nWir bieten eine große Auswahl an hochwertigen Sorten für Sie.",
@@ -91,7 +90,7 @@ def get_text(lang: Language, key: str) -> str:
 
 # ========== КЛАВИАТУРЫ ==========
 def get_main_menu_keyboard(lang: Language) -> types.ReplyKeyboardMarkup:
-    """Главное меню с тремя кнопками"""
+    """Главное меню с ТРЕМЯ кнопками"""
     catalog_text = get_text(lang, "catalog")
     order_text = get_text(lang, "order_button")
 
@@ -131,36 +130,25 @@ def get_plants_keyboard(plants, lang: Language) -> types.ReplyKeyboardMarkup:
     for plant in plants:
         buttons.append([types.KeyboardButton(text=plant.display_name)])
     buttons.append([types.KeyboardButton(text=get_text(lang, "back_to_categories"))])
-
-    return types.ReplyKeyboardMarkup(
-        keyboard=buttons,
-        resize_keyboard=True
-    )
+    return types.ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 def get_plant_navigation_keyboard(lang: Language, current_index: int, total: int, category: str, plant_id: str) -> types.InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-
     if current_index > 0:
         builder.add(types.InlineKeyboardButton(text=f"◀️ {current_index}", callback_data=f"prev_{category}_{current_index}"))
     else:
         builder.add(types.InlineKeyboardButton(text="◀️ --", callback_data="empty"))
-
     builder.add(types.InlineKeyboardButton(text=f"{current_index + 1}/{total}", callback_data="empty"))
-
     if current_index < total - 1:
         builder.add(types.InlineKeyboardButton(text=f"{current_index + 2} ▶️", callback_data=f"next_{category}_{current_index}"))
     else:
         builder.add(types.InlineKeyboardButton(text="-- ▶️", callback_data="empty"))
-
     builder.adjust(3)
-
     builder.row(
         types.InlineKeyboardButton(text=get_text(lang, "back_to_categories"), callback_data=f"back_cat_{category}"),
         types.InlineKeyboardButton(text=get_text(lang, "back_to_menu"), callback_data="back_menu")
     )
-
     builder.row(types.InlineKeyboardButton(text=get_text(lang, "contact_manager"), callback_data="contact_manager"))
-
     return builder.as_markup()
 
 def get_back_to_menu_keyboard(lang: Language) -> types.ReplyKeyboardMarkup:
@@ -235,7 +223,6 @@ def get_user_language(user_id: int) -> Language:
 def get_plants_by_category(user_id: int, category: str, lang: Language) -> List[Plant]:
     if user_id not in user_category_cache:
         user_category_cache[user_id] = {}
-
     cache_key = f"{category}_{lang.value}"
     if cache_key not in user_category_cache[user_id]:
         if category == "sativa":
@@ -247,7 +234,6 @@ def get_plants_by_category(user_id: int, category: str, lang: Language) -> List[
         else:
             filtered = PLANTS.copy()
         user_category_cache[user_id][cache_key] = filtered
-
     return user_category_cache[user_id][cache_key]
 
 # ========== ИНИЦИАЛИЗАЦИЯ БОТА ==========
@@ -313,12 +299,11 @@ async def contact_manager(message: Message):
     text = f"📦 Kontaktieren Sie den Manager:\n👉 {manager_link}\n\nOder schreiben Sie direkt: {MANAGER_USERNAME}"
     await message.answer(text, reply_markup=get_back_to_menu_keyboard(lang))
 
+# Обработчик кнопки смены языка
 @dp.message(lambda m: m.text in ["🌐 ENGLISH / РУССКИЙ", "🌐 DEUTSCH / РУССКИЙ", "🌐 DEUTSCH / ENGLISH"])
 async def show_language_menu(message: Message):
-    """Показать меню выбора языка"""
     user_id = message.from_user.id
     lang = get_user_language(user_id)
-
     keyboard = types.ReplyKeyboardMarkup(
         keyboard=[
             [types.KeyboardButton(text="🇩🇪 DEUTSCH")],
@@ -328,25 +313,19 @@ async def show_language_menu(message: Message):
         ],
         resize_keyboard=True
     )
-
     await message.answer("🌐 Wählen Sie Ihre Sprache / Select your language / Выберите язык:", reply_markup=keyboard)
 
 @dp.message(lambda m: m.text in ["🇩🇪 DEUTSCH", "🇬🇧 ENGLISH", "🇷🇺 РУССКИЙ"])
 async def set_language(message: Message):
-    """Установка выбранного языка"""
     user_id = message.from_user.id
-
     if message.text == "🇩🇪 DEUTSCH":
         user_languages[user_id] = Language.DE
     elif message.text == "🇬🇧 ENGLISH":
         user_languages[user_id] = Language.EN
     else:
         user_languages[user_id] = Language.RU
-
-    # Очищаем кэш при смене языка
     if user_id in user_category_cache:
         del user_category_cache[user_id]
-
     lang = get_user_language(user_id)
     await message.answer(get_text(lang, "welcome"), reply_markup=get_main_menu_keyboard(lang))
 
@@ -369,7 +348,6 @@ async def show_plant_details(message: Message):
     user_id = message.from_user.id
     lang = get_user_language(user_id)
     plant_name = message.text
-
     for plant in PLANTS:
         if plant.display_name == plant_name:
             if "sativa" in plant.genetics.lower():
@@ -378,25 +356,12 @@ async def show_plant_details(message: Message):
                 category = "indica"
             else:
                 category = "hybrid"
-
             plants = get_plants_by_category(user_id, category, lang)
             index = next((i for i, p in enumerate(plants) if p.id == plant.id), 0)
-
             text = plant.get_full_info_text(lang)
-            photo_path = plant.get_photo_path()
             keyboard = get_plant_navigation_keyboard(lang, index, len(plants), category, plant.id)
-
-            if photo_path and os.path.exists(photo_path):
-                try:
-                    photo = FSInputFile(photo_path)
-                    await message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-                except Exception as e:
-                    logger.error(f"Photo error: {e}")
-                    await message.answer(text, reply_markup=keyboard)
-            else:
-                await message.answer(text, reply_markup=keyboard)
+            await message.answer(text, reply_markup=keyboard)
             return
-
     await message.answer(get_text(lang, "select_category"), reply_markup=get_category_keyboard(lang))
 
 @dp.callback_query(lambda c: c.data.startswith("prev_"))
@@ -407,24 +372,12 @@ async def nav_prev(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
     plants = get_plants_by_category(user_id, category, lang)
-
     if current_index > 0:
         new_index = current_index - 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
-        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-
-        if photo_path and os.path.exists(photo_path):
-            try:
-                photo = FSInputFile(photo_path)
-                await callback.message.delete()
-                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-            except Exception as e:
-                logger.error(f"Photo error: {e}")
-                await callback.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("next_"))
@@ -435,24 +388,12 @@ async def nav_next(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
     plants = get_plants_by_category(user_id, category, lang)
-
     if current_index < len(plants) - 1:
         new_index = current_index + 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
-        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-
-        if photo_path and os.path.exists(photo_path):
-            try:
-                photo = FSInputFile(photo_path)
-                await callback.message.delete()
-                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
-            except Exception as e:
-                logger.error(f"Photo error: {e}")
-                await callback.message.edit_text(text, reply_markup=keyboard)
-        else:
-            await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("back_cat_"))
@@ -500,20 +441,13 @@ def health():
 
 @flask_app.route(WEBHOOK_PATH, methods=['POST'])
 def webhook():
-    """Обработчик вебхука"""
     try:
         update_data = request.get_json()
         if not update_data:
             return jsonify({"error": "No data"}), 400
-
         update = Update.model_validate(update_data)
-
-        # Создаём новый event loop для каждого запроса
-        new_loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(new_loop)
-        new_loop.run_until_complete(dp.feed_update(bot, update))
-        new_loop.close()
-
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(dp.feed_update(bot, update))
         return jsonify({"status": "ok"}), 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
@@ -523,4 +457,9 @@ def webhook():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     logger.info(f"Starting Flask server on port {port}")
-    flask_app.run(host='0.0.0.0', port=port, debug=False)
+    import threading
+    threading.Thread(target=lambda: flask_app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False), daemon=True).start()
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
