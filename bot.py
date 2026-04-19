@@ -348,6 +348,7 @@ async def show_plant_details(message: Message):
     user_id = message.from_user.id
     lang = get_user_language(user_id)
     plant_name = message.text
+
     for plant in PLANTS:
         if plant.display_name == plant_name:
             if "sativa" in plant.genetics.lower():
@@ -356,12 +357,26 @@ async def show_plant_details(message: Message):
                 category = "indica"
             else:
                 category = "hybrid"
+
             plants = get_plants_by_category(user_id, category, lang)
             index = next((i for i, p in enumerate(plants) if p.id == plant.id), 0)
+
             text = plant.get_full_info_text(lang)
+            photo_path = plant.get_photo_path()
             keyboard = get_plant_navigation_keyboard(lang, index, len(plants), category, plant.id)
-            await message.answer(text, reply_markup=keyboard)
+
+            # Пытаемся отправить фото, если оно есть
+            if photo_path and os.path.exists(photo_path):
+                try:
+                    photo = FSInputFile(photo_path)
+                    await message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
+                except Exception as e:
+                    logger.error(f"Photo error: {e}")
+                    await message.answer(text, reply_markup=keyboard)
+            else:
+                await message.answer(text, reply_markup=keyboard)
             return
+
     await message.answer(get_text(lang, "select_category"), reply_markup=get_category_keyboard(lang))
 
 @dp.callback_query(lambda c: c.data.startswith("prev_"))
@@ -372,12 +387,24 @@ async def nav_prev(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
     plants = get_plants_by_category(user_id, category, lang)
+
     if current_index > 0:
         new_index = current_index - 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
+        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-        await callback.message.edit_text(text, reply_markup=keyboard)
+
+        if photo_path and os.path.exists(photo_path):
+            try:
+                photo = FSInputFile(photo_path)
+                await callback.message.delete()
+                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
+            except Exception as e:
+                logger.error(f"Photo error: {e}")
+                await callback.message.edit_text(text, reply_markup=keyboard)
+        else:
+            await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("next_"))
@@ -388,12 +415,24 @@ async def nav_next(callback: CallbackQuery):
     user_id = callback.from_user.id
     lang = get_user_language(user_id)
     plants = get_plants_by_category(user_id, category, lang)
+
     if current_index < len(plants) - 1:
         new_index = current_index + 1
         plant = plants[new_index]
         text = plant.get_full_info_text(lang)
+        photo_path = plant.get_photo_path()
         keyboard = get_plant_navigation_keyboard(lang, new_index, len(plants), category, plant.id)
-        await callback.message.edit_text(text, reply_markup=keyboard)
+
+        if photo_path and os.path.exists(photo_path):
+            try:
+                photo = FSInputFile(photo_path)
+                await callback.message.delete()
+                await callback.message.answer_photo(photo=photo, caption=text, reply_markup=keyboard)
+            except Exception as e:
+                logger.error(f"Photo error: {e}")
+                await callback.message.edit_text(text, reply_markup=keyboard)
+        else:
+            await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("back_cat_"))
