@@ -449,21 +449,22 @@ def health():
 
 @flask_app.route(WEBHOOK_PATH, methods=['POST'])
 def webhook():
-    """Обработчик вебхука (синхронная версия для совместимости)"""
+    """Обработчик вебхука"""
     try:
         update_data = request.get_json()
         if not update_data:
             return jsonify({"error": "No data"}), 400
 
-        # Создаем новый event loop для обработки асинхронного update
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
+        # Получаем текущий или создаём новый event loop
         try:
-            update = Update.model_validate(update_data)
-            loop.run_until_complete(dp.feed_update(bot, update))
-        finally:
-            loop.close()
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        update = Update.model_validate(update_data)
+        # Запускаем обработку и ждём результат
+        loop.run_until_complete(dp.feed_update(bot, update))
 
         return jsonify({"status": "ok"}), 200
     except Exception as e:
